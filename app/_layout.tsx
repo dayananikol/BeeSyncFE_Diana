@@ -1,39 +1,60 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import React from 'react';
+import { Tabs } from 'expo-router';
+import { Image } from 'react-native';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
+const Layout = () => {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Tabs
+      screenOptions={{
+        headerStyle: { backgroundColor: '#FFefa4' },
+        headerTitleStyle: {
+          fontSize: 17,
+          fontWeight: 'bold',
+          color: '#61646b',
+          paddingTop: 20,
+        },
+        headerTitleAlign: 'center',
+      }}
+    >
+      <Tabs.Screen
+        name="CalendarView"
+        options={{
+          tabBarLabel: '',
+          title: 'Calendar',
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../assets/images/calendar_month.png')}
+              style={{
+                width: 29,
+                height: 32,
+                marginTop: 5,
+                tintColor: focused ? '#fed000' : '#61646b', // Change icon color when selected
+              }}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarLabel: '',
+          title: 'Hive Progress',
+          tabBarIcon: ({ focused }) => (
+            <Image
+              source={require('../assets/images/Hive.png')}
+              style={{
+                width: 30,
+                height: 30,
+                marginTop: 5,
+                tintColor: focused ? '#fed000' : '#61646b', // Change icon color when selected
+              }}
+            />
+          ),
+        }}
+      />
+    </Tabs>
   );
-}
+};
+
+export default Layout;
