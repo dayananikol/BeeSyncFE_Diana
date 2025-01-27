@@ -1,9 +1,10 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
+import { View, Text, StyleSheet, Image } from "react-native";
 
 interface Task {
   title: string;
-  dueTime: string;
+  img_path: string;
+  due_time: string;
 }
 
 interface SpecificTaskProps {
@@ -11,14 +12,23 @@ interface SpecificTaskProps {
 }
 
 const SpecificTask: React.FC<SpecificTaskProps> = ({ task }) => {
-  const { title, dueTime } = task;
+  const { title, 
+    img_path,
+    due_time } = task;
+
+  console.log('Task:', task); // Log the task to debug
+  
+  const defaultImageUrl = 'http://192.168.1.33/uploads/defaultImg.png';
+  const taskImageUrl = task.img_path ? `http://192.168.1.33/uploads/${task.img_path}` : defaultImageUrl;
 
   return (
     <View style={styles.container}>
-      <Image source={require("../assets/images/taskDisplayIcon.png")} style={styles.image} />
+      <View>
+        <Image style={styles.image} source={{ uri: taskImageUrl }} />
+      </View>
       <View style={styles.textContainer}>
         <Text style={styles.title}>{title}</Text>
-        <Text style={styles.dueTime}>{dueTime}</Text>
+        <Text style={styles.dueTime}>{due_time}</Text>
       </View>
     </View>
   );
@@ -40,12 +50,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   image: {
-    width: 40,
-    height: 40,
+    width: 50,
+    height: 50,
   },
   textContainer: {
     flex: 1,
     marginLeft: 10,
+    flexDirection: "column",
   },
   title: {
     fontSize: 16,

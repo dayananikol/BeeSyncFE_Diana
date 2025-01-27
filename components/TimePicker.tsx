@@ -43,8 +43,8 @@ const TimePicker:React.FC<TimePickerProps> = ({ selectedTime, setSelectedTime })
     hours = hours % 12;
     hours = hours || 12; // Convert '0' hours to '12'
   
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")} ${ampm}`;
-  };
+    return localTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    };
 
   return (
     <View style={styles.container}>

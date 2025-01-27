@@ -46,8 +46,11 @@ const DisplayUserProfile_Screen: React.FC = () => {
       }
       const userData = await response.json();
 
+      const defaultImageUrl = 'http://192.168.1.33/uploads/defaultImg.png';
+      const userImageUrl = userData && userData.img_path ? `http://192.168.1.33/uploads/${userData.img_path}` : defaultImageUrl;
+
       console.log('User Data:', userData);
-      setUserProfileImage(typeof userData.profileImage === 'string' ? userData.profileImage : null);
+      setUserProfileImage(userImageUrl);
       setUsername(userData.user_name);
       setFirstName(userData.first_name);
       setLastName(userData.last_name);
@@ -144,8 +147,7 @@ const DisplayUserProfile_Screen: React.FC = () => {
         Alert.alert('Error', "You can't use your current password.");
       }
       return;
-    } else if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-        Alert.alert('Password must:', '• Be at least 8 characters long. \n• Contain at least one uppercase and one lowercase letter. \n• Have at least one numeric digit.');
+  
       
     } else if (newPassword !== confirmPassword) {
       if (Platform.OS === 'android') {
@@ -201,14 +203,11 @@ const DisplayUserProfile_Screen: React.FC = () => {
           <View style={styles.profileContainer}>
             <Text style={styles.userProfileText}>User Profile</Text>
             <View style={styles.topProfile}>
-              <Image
-                source={
-                  userProfileImage && typeof userProfileImage === 'string'
-                    ? { uri: userProfileImage }
-                    : require('../assets/images/imageAddBill.png')
-                }
-                style={styles.profileImage}
-              />
+              {userProfileImage && (
+                <Image source={{ uri: userProfileImage }}
+                  style={styles.profileImage}
+                />
+              )}
               <Text style={styles.profileNameText}>{username}</Text>
               <TouchableOpacity style={styles.editUserProfileBtn} onPress={editUserProfilePress}>
                 <Text style={styles.editUserProfileText}>Edit User Profile</Text>
@@ -302,7 +301,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 15,
     marginTop: 40,
     flexDirection: "column",
-    justifyContent: "flex-start",
+    justifyContent: "center",
     backgroundColor: 'white',
     width: '90%',
     borderWidth: 1,

@@ -6,6 +6,8 @@ import { useFonts } from "expo-font";
 import ProfilePictureUploader from "@/components/ProfilePictureUploader";
 import { router, useFocusEffect } from "expo-router";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+
 
 type RouteParams = {
   userProfileImage: string | null;
@@ -90,8 +92,72 @@ const EditUserProfile_Screen: React.FC = () => {
     }, [userProfileImage, username, firstName, lastName, emailAddress])
   );
 
+  const uploadImage = async (uri: string) => {
+    const apiUrl = 'http://192.168.1.33:8080/file/upload';
+    const uriParts = uri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
+  
+    // Read the file into a blob
+    const file = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  
+    const formData = new FormData();
+    formData.append('file', {
+      uri: uri,
+      name: `${updatedUsername}.${fileType}`,
+      type: `image/${fileType}`,
+      data: `data:image/${fileType};base64,${file}`,
+    } as any);
+  
+    try {
+      const jwtToken = await AsyncStorage.getItem('jwtToken');
+      if (!jwtToken) {
+        Alert.alert('Error', 'No JWT token found. Please log in again.');
+        return null;
+      }
+  
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${jwtToken}`,
+        },
+      });
+  
+      const responseText = await response.text();
+      console.log('Raw Response:', responseText);
+  
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+          const fileName = data.fileName;
+          return fileName;
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`Failed to parse JSON response: ${error.message}`);
+          } else {
+            throw new Error('Failed to parse JSON response');
+          }
+        }
+      } else {
+        throw new Error(`Failed to upload image: ${responseText}`);
+      }
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      return null;
+    }
+  };
+
 const handleSaveChanges = async () => {
+  let imagePath = null;
+    if(updatedUserProfileImage){
+      imagePath = await uploadImage(updatedUserProfileImage);
+    }
+
   const updatedUserData = {
+    img_path: imagePath,
     first_name: updatedFirstName,
     last_name: updatedLastName,
     user_name: updatedUsername,
@@ -121,19 +187,19 @@ const handleSaveChanges = async () => {
 
     if (response.ok) {
       Alert.alert('Success', 'Profile updated successfully.');
-      
+      router.push('/DisplayUserProfile_Screen')
 
-      // Use the router to navigate and pass parameters via the URL
-      // router.replace({
-      //   pathname: '/DisplayUserProfile_Screen',
-      //   params: {
-      //     userProfileImage: updatedUserProfileImage,
-      //     username: updatedUsername,
-      //     firstName: updatedFirstName,
-      //     lastName: updatedLastName,
-      //     emailAddress: updatedEmailAddress,
-      //   },
-      // });
+      //Use the router to navigate and pass parameters via the URL
+      router.replace({
+        pathname: '/DisplayUserProfile_Screen',
+        params: {
+          userProfileImage: updatedUserProfileImage,
+          username: updatedUsername,
+          firstName: updatedFirstName,
+          lastName: updatedLastName,
+          emailAddress: updatedEmailAddress,
+        },
+      });
     } else {
       Alert.alert('Error', 'Failed to update profile.');
     }

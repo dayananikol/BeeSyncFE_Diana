@@ -6,13 +6,19 @@
 // remove the example data, uncomment the fetch function (need a major fix since im not sure if this really works)
 
 import React, { useLayoutEffect, useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, ActivityIndicator } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
 import SpecificTask from "../components/SpecificTask";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from "expo-router";
 
-const ViewTask_Screen: React.FC = () => {
+type RouteParams = {
+  userId: number;
+};
+
+const ViewTask_Screen  = () => {
   const [fontsLoaded] = useFonts({
     myCustomFont: require("../assets/fonts/WorkSans-Regular.ttf"),
   });
@@ -20,68 +26,92 @@ const ViewTask_Screen: React.FC = () => {
   // if (!fontsLoaded) return null; // Prevent rendering until fonts are loaded
 
   const navigation = useNavigation();
-  const route = useRoute();
-  // const { userId } = route.params || { userId: null }; // Add default value
+  const route = useRoute<RouteProp<{ params: RouteParams }, 'params'>>(); 
+  const { userId } = route.params || { userId: null }; // Add default value
 
-  const [user, setUser] = useState<{ name: string; profileImage: string } | null>(null);
-  const [tasks, setTasks] = useState<{ title: string; dueTime: string }[]>([]);
+  // const id = userId;
+
+  console.log('userId:', userId);
+
+  const [user, setUser] = useState<{ user_name: string; img_path: string } | null>(null);
+  const [tasks, setTasks] = useState<{ title: string; due_time: string, img_path:string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  
+  const fetchUserDetails = async () => {
+    try {
+      const jwtToken = await AsyncStorage.getItem('jwtToken');
+
+      if (!jwtToken) {
+        Alert.alert('Error', 'No JWT token found. Please log in again.');
+        return;
+      }
+
+      const userResponse = await fetch(`http://192.168.1.33:8080/users/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        }
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const userData = await userResponse.json();
+      console.log('User data: ', userData);
+
+      // Extract only the necessary fields
+      const { user_name, img_path } = userData;
+      setUser({ user_name, img_path });
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      Alert.alert('Error', 'Failed to fetch user details.');
+    }
+  };
+
+  const fetchTasks = async () => {
+    try {
+      const jwtToken = await AsyncStorage.getItem('jwtToken');
+
+      if (!jwtToken) {
+        Alert.alert('Error', 'No JWT token found. Please log in again.');
+        return;
+      }
+
+      const tasksResponse = await fetch(`http://192.168.1.33:8080/tasks/get_byUserId/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        }
+      });
+
+      if (!tasksResponse.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const tasksData = await tasksResponse.json();
+      console.log(tasksData);
+
+      setTasks(tasksData);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      Alert.alert('Error', 'Failed to fetch tasks.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // if (!userId) {
-    //   setError('User ID is missing.');
-    //   setIsLoading(false);
-    //   return;
-    // }
-
-    const fetchUserData = async () => {
-      // try {
-      //   const userResponse = await fetch(`https://your-api-endpoint.com/users/${userId}`);
-      //   if (!userResponse.ok) {
-      //     throw new Error('Network response was not ok');
-      //   }
-      //   const userData = await userResponse.json();
-      //   setUser(userData);
-
-      //   const tasksResponse = await fetch(`https://your-api-endpoint.com/tasks?userId=${userId}`);
-      //   if (!tasksResponse.ok) {
-      //     throw new Error('Network response was not ok');
-      //   }
-      //   const tasksData = await tasksResponse.json();
-
-        // Example data
-        const exampleTasks = [
-          { title: "Example Task 1", dueTime: "10:00 AM" },
-          { title: "Example Task 2", dueTime: "02:00 PM" },
-          { title: "Example Task 3", dueTime: "04:00 PM" },
-          { title: "Example Task 1", dueTime: "10:00 AM" },
-          { title: "Example Task 2", dueTime: "02:00 PM" },
-          { title: "Example Task 3", dueTime: "04:00 PM" },
-          { title: "Example Task 1", dueTime: "10:00 AM" },
-          { title: "Example Task 2", dueTime: "02:00 PM" },
-          { title: "Example Task 3", dueTime: "04:00 PM" },
-        ];
-
-        // Combine fetched data with example data
-        // const combinedTasks = [...tasksData, ...exampleTasks];
-        // setTasks(combinedTasks);
-        // setTasks(taskData);
-        setTasks(exampleTasks);
-  //     } catch (error) {
-  //       setError('Error fetching data. Please try again later.');
-  //       console.error('Error fetching data:', error);
-  //     } finally {
-  //       setIsLoading(false);
-  //     }
-    };
-
-    fetchUserData();
-  // }, [userId]);
-      }, []);
+    fetchUserDetails();
+    fetchTasks();
+  }, [userId]);
 
   const handleClosePress = () => {
-    navigation.goBack();
+    router.push('/AllTask_Screen');
   };
 
   useLayoutEffect(() => {
@@ -123,6 +153,9 @@ const ViewTask_Screen: React.FC = () => {
   //   );
   // }
 
+  const defaultImageUrl = 'http://192.168.1.33/uploads/defaultImg.png';
+  const userImageUrl = user && user.img_path ? `http://192.168.1.33/uploads/${user.img_path}` : defaultImageUrl;
+  
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
@@ -130,22 +163,23 @@ const ViewTask_Screen: React.FC = () => {
         <ScrollView>
           <View style={styles.profileContainer}>
             {user && (
-              <>
-                <Image source={{ uri: user.profileImage }} style={styles.profileImage} />
-                <Text style={styles.profileName}>{user.name}</Text>
+              <> 
+                <Image source={{ uri: userImageUrl }} style={styles.profileImage} />
+                <Text style={styles.profileName}>{user.user_name}</Text>
               </>
             )}
           </View>
           <View style={styles.memberTaskContainer}>
             <Text style={styles.currentActiveTaskText}>Current Active Task</Text>
           </View>
-          {tasks.length > 0 ? (
+        
+            {tasks.length > 0 ? (
             tasks.map((task, index) => (
               <SpecificTask key={index} task={task} />
             ))
-          ) : (
+            ) : (
             <Text style={styles.noTasksText}>No tasks available</Text>
-          )}
+            )}
         </ScrollView>
       </SafeAreaView>
     </SafeAreaProvider>

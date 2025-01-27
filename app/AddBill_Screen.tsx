@@ -11,9 +11,9 @@ import TimePicker from '../components/TimePicker';
 import ProfilePictureUploader from '../components/ProfilePictureUploader';
 import Checkbox from 'expo-checkbox';
 import { useRouter } from 'expo-router';
-import { format } from 'date-fns';
+import { parse, format } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import * as FileSystem from 'expo-file-system';
 
 
 interface AddBillProps {}
@@ -94,14 +94,77 @@ const AddBill_Screen: React.FC<AddBillProps> = () => {
     setRecurrenceSelected(prev => (prev === buttonId ? null : buttonId)); 
   };
 
+  const uploadImage = async (uri: string) => {
+    const apiUrl = 'http://192.168.1.33:8080/file/upload';
+    const uriParts = uri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
+  
+    // Read the file into a blob
+    const file = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  
+    const formData = new FormData();
+    formData.append('file', {
+      uri: uri,
+      name: `${billName}.${fileType}`,
+      type: `image/${fileType}`,
+      data: `data:image/${fileType};base64,${file}`,
+    } as any);
+  
+    try {
+      const jwtToken = await AsyncStorage.getItem('jwtToken');
+      if (!jwtToken) {
+        Alert.alert('Error', 'No JWT token found. Please log in again.');
+        return null;
+      }
+  
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${jwtToken}`,
+        },
+      });
+  
+      const responseText = await response.text();
+      console.log('Raw Response:', responseText);
+  
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+          const fileName = data.fileName;
+          return fileName;
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`Failed to parse JSON response: ${error.message}`);
+          } else {
+            throw new Error('Failed to parse JSON response');
+          }
+        }
+      } else {
+        throw new Error(`Failed to upload image: ${responseText}`);
+      }
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      return null;
+    }
+  };
+
   const handleCreateBillPress = async () => {
-    // if (!billName) {
-    //   Alert.alert("Bill Name Required", "Please enter a bill name.");
-    //   return;
-    // } else if (!billAmount) {
-    //   Alert.alert("Bill Amount Required", "Please enter a bill amount.");
-    //   return;
-    // } 
+    let imagePath = null;
+    if(profileImage){
+      imagePath = await uploadImage(profileImage);
+    }
+    
+    if (!billName) {
+      Alert.alert("Bill Name Required", "Please enter a bill name.");
+      return;
+    } else if (!billAmount) {
+      Alert.alert("Bill Amount Required", "Please enter a bill amount.");
+      return;
+    } 
   
     const jwtToken = await AsyncStorage.getItem('jwtToken');
 
@@ -113,15 +176,15 @@ const AddBill_Screen: React.FC<AddBillProps> = () => {
     const billData = {
       hive_id:1,
       bill_name: billName,
-      // profileImage,
+      img_path: imagePath,
       amount: billAmount,
       bill_status: bill_status,
       description: description,
       schedules: [{ 
-        start_date: format(startDate, 'yyyy-MM-dd'),
-        end_date: isRecurrenceNeverEnds ? null : format(endDate, 'yyyy-MM-dd'),
+        start_date: startDate.toISOString().split('T')[0],
+        end_date: isRecurrenceNeverEnds ? null : endDate.toISOString().split('T')[0].split('.')[0],
         recurrence: recurrenceSelected,
-        due_time: format(time, 'HH:mm:ss'),
+        due_time: time.toISOString().split('T')[1].split('.')[0],
       },
       ], 
     };
@@ -147,7 +210,7 @@ const AddBill_Screen: React.FC<AddBillProps> = () => {
               text: "OK",
               onPress: () => {
                 resetForm();
-                router.push('/ViewTask_Screen'); // Navigate to the desired page
+                router.push('/CalendarView'); // Navigate to the desired page
               }
             }
           ]

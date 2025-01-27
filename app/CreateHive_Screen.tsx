@@ -8,6 +8,9 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useFonts } from "expo-font";
 import ProfilePictureUploader from "@/components/ProfilePictureUploader";
 import { router } from "expo-router";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+
 
 const CreateHive_Screen: React.FC = () => {
   const [hiveProfileImage, setHiveProfileImage] = useState<string | null>(null);
@@ -62,15 +65,84 @@ const CreateHive_Screen: React.FC = () => {
     });
   }, [navigation]);
 
+  const uploadImage = async (uri: string) => {
+    const apiUrl = 'http://192.168.1.33:8080/file/upload';
+    const uriParts = uri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
+  
+    // Read the file into a blob
+    const file = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  
+    const formData = new FormData();
+    formData.append('file', {
+      uri: uri,
+      name: `${hiveName}.${fileType}`,
+      type: `image/${fileType}`,
+      data: `data:image/${fileType};base64,${file}`,
+    } as any);
+  
+    try {
+      const jwtToken = await AsyncStorage.getItem('jwtToken');
+      if (!jwtToken) {
+        Alert.alert('Error', 'No JWT token found. Please log in again.');
+        return null;
+      }
+  
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${jwtToken}`,
+        },
+      });
+  
+      const responseText = await response.text();
+      console.log('Raw Response:', responseText);
+  
+      if (response.ok) {
+        try {
+          const data = JSON.parse(responseText);
+          const fileName = data.fileName;
+          return fileName;
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new Error(`Failed to parse JSON response: ${error.message}`);
+          } else {
+            throw new Error('Failed to parse JSON response');
+          }
+        }
+      } else {
+        throw new Error(`Failed to upload image: ${responseText}`);
+      }
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      return null;
+    }
+  };
+
 const handleCreateHivePress = async () => {
+  let imagePath = null;
+    if(hiveProfileImage){
+      imagePath = await uploadImage(hiveProfileImage);
+    }
+
+  const jwtToken = await AsyncStorage.getItem('jwtToken');
+
+    if (!jwtToken) {
+      Alert.alert('Error', 'No JWT token found. Please log in again.');
+      return;
+    }
+
   if (!hiveName) {Alert.alert("Hive Name Required", "Please enter a hive name.");
       return;
   } 
         
-  // const hiveData = {hiveName, hiveProfileImage};
   const hiveData = {
-    hiveName,
-    // hiveProfileImage 
+    hiveName: hiveName,
+    img_path: imagePath,
   };
 
     try {
@@ -78,10 +150,13 @@ const handleCreateHivePress = async () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+
         },
         body: JSON.stringify(hiveData),
       });
 
+      console.log('Hive Data:', hiveData);
       if (response.ok) {
         Alert.alert('Success', 'Hive created successfully',
             [
@@ -95,7 +170,8 @@ const handleCreateHivePress = async () => {
               ]
         );
       } else {
-        Alert.alert('Error', 'Failed to create hive' );
+        const errorMessage = await response.text();
+        Alert.alert('Error', errorMessage);
       }
     } catch (error) {
       Alert.alert('Error', `An error occurred: ${(error as any).message}`);
