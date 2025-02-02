@@ -7,6 +7,8 @@ import { useFonts } from "expo-font";
 import { router } from "expo-router";
 import Modal from 'react-native-modal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { set } from "date-fns";
+
 
 
 const DisplayUserProfile_Screen: React.FC = () => {
@@ -20,11 +22,43 @@ const DisplayUserProfile_Screen: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState<string>('');
   const [newPassword, setNewPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
-  
+  const [isRecoveryCodeModalVisible, setIsRecoveryCodeModalVisible] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [storedRecoveryCode, setStoredRecoveryCode] = useState('');
+  const [isRecoveryCodeVisible, setIsRecoveryCodeVisible] = useState(false);
+  const [isPasswordBeforeRecoveryCodeVisible, setIsPasswordBeforeRecoveryCodeVisible] = useState(false);
+  const [modalPassword, setModalPassword] = useState<string>(''); 
 
   const [fontsLoaded] = useFonts({ myCustomFont: require("../assets/fonts/WorkSans-Regular.ttf") });
   const navigation = useNavigation();
 
+  const handleBackPress = () => {
+    router.push('/CalendarView'); // change to main menu screen
+  };
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerStyle: { backgroundColor: "#FFefa4" },
+      headerTitleStyle: {
+        fontSize: 17,
+        fontWeight: "bold",
+        color: "#61646b",
+        paddingTop: 20,
+      },
+      headerTitleAlign: "center",
+      headerTitle: "User Profile",
+      headerLeft: () => (
+        <TouchableOpacity onPress={handleBackPress} style={{ paddingLeft: 20 }}>
+          <Image
+            source={require("../assets/images/backBtn.png")}
+            style={{ width: 20, height: 33 }}
+          />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
+
+  //for display  of user profile
   const fetchUserProfile = async () => {
     try {
 
@@ -56,6 +90,7 @@ const DisplayUserProfile_Screen: React.FC = () => {
       setLastName(userData.last_name);
       setEmailAddress(userData.user_email);
       setPassword(userData.user_password);
+      setStoredRecoveryCode(userData.recovery_code); 
     } catch (error) {
       Alert.alert('Error', 'Failed to fetch user profile data.');
     }
@@ -67,6 +102,7 @@ const DisplayUserProfile_Screen: React.FC = () => {
     }, [])
   );
 
+  // to pass the data to edit user profile screen
   const editUserProfilePress = async () => {
     router.push({
       pathname: '/EditUserProfile_Screen',
@@ -80,33 +116,6 @@ const DisplayUserProfile_Screen: React.FC = () => {
     });
   };
 
-  const handleBackPress = () => {
-    router.push('/CalendarView'); // change to main menu screen
-  };
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerStyle: { backgroundColor: "#FFefa4" },
-      headerTitleStyle: {
-        fontSize: 17,
-        fontWeight: "bold",
-        color: "#61646b",
-        paddingTop: 20,
-      },
-      headerTitleAlign: "center",
-      headerTitle: "User Profile",
-      headerLeft: () => (
-        <TouchableOpacity onPress={handleBackPress} style={{ paddingLeft: 20 }}>
-          <Image
-            source={require("../assets/images/backBtn.png")}
-            style={{ width: 20, height: 33 }}
-          />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
-
-  // empties the change password form when exiting the screen or after saving
   const resetPassForm = () => {
     setCurrentPassword(''),
     setNewPassword(''),
@@ -114,10 +123,86 @@ const DisplayUserProfile_Screen: React.FC = () => {
     // setPassword('')
   };
 
-  const handleChangePasswordPress = () => {
-    setIsChangePasswordModalVisible(true);
+  const resetVerifyRecoveryCodeForm = () => {
+    setRecoveryCode('');
   };
 
+  const resetModalPassword = () => {
+    setModalPassword('');
+  }
+
+  const handleSeeRecoveryCode = () =>{
+    setIsPasswordBeforeRecoveryCodeVisible(true);
+    // setIsRecoveryCodeVisible(false);
+  }
+
+  // Password before recovery code
+  const handlePasswordBeforeRecoveryCode = async () => {
+
+    if (!password) {
+      Alert.alert('Error', 'Please enter your password.');
+      return;
+    }
+    else if(modalPassword !== password){
+      Alert.alert('Error', 'Invalid Password');
+      return;
+    } else {
+      setIsRecoveryCodeVisible(true);
+      setIsPasswordBeforeRecoveryCodeVisible(false);
+      resetModalPassword();
+    }
+    
+  }
+
+  const handleChangePasswordPress = () => {
+    setIsRecoveryCodeModalVisible(true);
+  };
+
+
+  // verify code first
+  const handleVerifyRecoveryCode = async () => {
+    try {
+      const jwtToken = await AsyncStorage.getItem('jwtToken');
+  
+      if (!recoveryCode) {
+        Alert.alert('Error', 'Please enter the recovery code.');
+        return;
+      }
+  
+      const response = await fetch('http://192.168.1.33:8080/auth/verify-recovery-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwtToken}`
+        },
+        body: JSON.stringify({ recovery_code: recoveryCode }),
+      });
+  
+      const responseText = await response.text();
+  
+      if (response.ok) {
+        Alert.alert('Verification Successful', 'You may now change your password.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setIsRecoveryCodeModalVisible(false);
+              setIsChangePasswordModalVisible(true);
+              resetVerifyRecoveryCodeForm();
+            },
+          },
+        ]);
+      } else {
+        Alert.alert('Error', responseText || 'Invalid recovery code.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An error occurred while verifying the recovery code.');
+    }
+  };
+  
+
+
+
+  // save password func
   const handleSavePassword = async () => {
     if (!currentPassword) {
       if (Platform.OS === 'android') {
@@ -190,10 +275,26 @@ const DisplayUserProfile_Screen: React.FC = () => {
   }
   };
 
+
+  
   const handleCancelChangePassword = () => {
     setIsChangePasswordModalVisible(false);
     resetPassForm()
   };
+
+  const handleCancelVerifyRecoveryCode = () => {
+    setIsRecoveryCodeModalVisible(false);
+    resetVerifyRecoveryCodeForm()
+  };
+
+  const handleBackRecoveryCode = () =>{
+    setIsRecoveryCodeVisible(false);
+  }
+
+  const handleCancelPasswordInput = () =>{
+    setIsPasswordBeforeRecoveryCodeVisible(false);
+    resetModalPassword();
+  }
 
   return (
     <SafeAreaProvider>
@@ -202,6 +303,9 @@ const DisplayUserProfile_Screen: React.FC = () => {
         <ScrollView style={styles.scrollview}>
           <View style={styles.profileContainer}>
             <Text style={styles.userProfileText}>User Profile</Text>
+            <TouchableOpacity onPress={handleSeeRecoveryCode}>
+              <Text style={styles.recoveryCodeText}>See Recovery Code</Text>
+            </TouchableOpacity>
             <View style={styles.topProfile}>
               {userProfileImage && (
                 <Image source={{ uri: userProfileImage }}
@@ -231,6 +335,78 @@ const DisplayUserProfile_Screen: React.FC = () => {
           </View>
         </ScrollView>
 
+
+        {/* Password before See Recovery Modal*/}
+        <Modal
+          isVisible={isPasswordBeforeRecoveryCodeVisible}
+          animationIn="fadeIn"
+          animationOut={"slideOutDown"}
+          onBackdropPress={handleCancelPasswordInput}
+          onBackButtonPress={handleCancelPasswordInput}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Enter your password</Text>
+            <TextInput
+              style={styles.userEditProfileValue}
+              placeholder="Password"
+              value={modalPassword}
+              onChangeText={setModalPassword}
+              secureTextEntry={true}/>
+            <View style={styles.twoBtns}>
+              <TouchableOpacity style={styles.cancelButton} onPress={handleCancelPasswordInput}>
+                <Text style={styles.cancelButtonText}>Back</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveButton} onPress={handlePasswordBeforeRecoveryCode}>
+                <Text style={styles.saveButtonText}>Next</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* See Recovery Code Modal*/}
+        <Modal
+          isVisible={isRecoveryCodeVisible}
+          onBackdropPress={handleCancelVerifyRecoveryCode}
+          onBackButtonPress={handleCancelVerifyRecoveryCode}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Recovery Code</Text>
+            <Text style={styles.storedRecoveryValue}>{storedRecoveryCode}</Text>
+            <View style={styles.twoBtns}>
+              <TouchableOpacity style={styles.cancelButton} onPress={handleBackRecoveryCode}>
+                <Text style={styles.cancelButtonText} >Back</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+       {/* Recovery Code before Change Password Modal*/}
+        <Modal
+          isVisible={isRecoveryCodeModalVisible}
+          animationIn="slideInUp"
+          animationOut={"slideOutDown"}
+          onBackdropPress={handleCancelVerifyRecoveryCode}
+          onBackButtonPress={handleCancelVerifyRecoveryCode}
+        >
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Enter Recovery Code</Text>
+            <TextInput
+              style={styles.userEditProfileValue}
+              placeholder="Recovery Code"
+              value={recoveryCode}
+              onChangeText={setRecoveryCode}
+              
+            />
+            <View style={styles.twoBtns}>
+              <TouchableOpacity style={styles.cancelButton} onPress={handleCancelVerifyRecoveryCode}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveButton} onPress={handleVerifyRecoveryCode}>
+                <Text style={styles.saveButtonText}>Verify</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+        
+        {/* Chnage Password Modal */}
         <Modal
           isVisible={isChangePasswordModalVisible}
           animationIn="slideInUp"
@@ -283,9 +459,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#fff',
     flexDirection: 'column',
+    minHeight: '100%' 
   },
   scrollview: {
-    flexGrow: 1
+    flexGrow: 1,
+    minHeight: '100%',
+    
   },
   bgImage: {
     position: "absolute",
@@ -315,6 +494,18 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: "#61646b",
     textAlign: 'left',
+  },
+  recoveryCodeText:{
+    fontFamily:'myCustomFont',
+    color:'gray'
+  },
+  storedRecoveryValue:{
+    fontFamily:'myCustomFont',
+    borderWidth:1,
+    backgroundColor:'white',
+    borderColor:"gray",
+    padding:10,
+    borderRadius: 5,
   },
   topProfile: {
     flexDirection: 'row',
@@ -404,6 +595,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFEFEF',
     borderRadius: 10,
     padding: 20,
+    
   },
   modalTitle: {
     fontFamily: "myCustomFont",
@@ -428,6 +620,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
+    alignContent:'center',
     gap: 50
   },
   saveButton: {
@@ -435,7 +628,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 10,
-    marginTop: 20,
     shadowColor: 'black',
     width: 150,
     shadowOffset: { width: 0, height: 5 }, // Only apply shadow to the bottom
