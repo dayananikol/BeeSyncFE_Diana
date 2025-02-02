@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from "react";
+import React, { useLayoutEffect, useState } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Image, Alert, ScrollView } from 'react-native';
 import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -27,7 +27,7 @@ const EditUserProfile_Screen: React.FC = () => {
   const [updatedLastName, setUpdatedLastName] = useState<string>(lastName || ''); 
   const [updatedEmailAddress, setUpdatedEmailAddress] = useState<string>(emailAddress || ''); 
 
-  const [fontsLoaded] = useFonts({ myCustomFont: require("../assets/fonts/WorkSans-Regular.ttf") });
+  useFonts({ myCustomFont: require("../assets/fonts/WorkSans-Regular.ttf") });
   const navigation = useNavigation();
 
   const handleBackPress = () => {
@@ -151,10 +151,12 @@ const EditUserProfile_Screen: React.FC = () => {
   };
 
 const handleSaveChanges = async () => {
-  let imagePath = null;
-    if(updatedUserProfileImage){
+  let imagePath = userProfileImage;
+  if (updatedUserProfileImage !== userProfileImage) {
+    if (updatedUserProfileImage) {
       imagePath = await uploadImage(updatedUserProfileImage);
     }
+  }
 
   const updatedUserData = {
     img_path: imagePath,
